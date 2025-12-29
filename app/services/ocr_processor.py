@@ -52,6 +52,9 @@ class OCRProcessor:
             image = Image.open(io.BytesIO(image_bytes))
             image = self.preprocess_image(image)
             text = pytesseract.image_to_string(image, config=self.tesseract_config)
+            logger.info("--- RAW OCR TEXT START ---")
+            logger.info(text)
+            logger.info("--- RAW OCR TEXT END ---")
             return text
         except Exception as e:
             logger.error(f"Error extracting text from image: {e}")
@@ -102,15 +105,30 @@ class OCRProcessor:
     def extract_date(self, text: str) -> Optional[str]:
         """Extract date from text"""
         # Common date formats: MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, etc.
+        from datetime import datetime
         date_patterns = [
-            r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', # 12/31/2023 or 31-12-23
-            r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})', # 2023-12-31
-            r'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2},?\s+\d{4}', # Jan 31, 2023
+            r'(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})', # 12/31/2023 or 31/12/2023
+            r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})', # 2023-12-31
         ]
+        
+        # Try to parse and convert to ISO YYYY-MM-DD
         for pattern in date_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
+            match = re.search(pattern, text)
             if match:
-                return match.group(0)
+                parts = match.groups()
+                try:
+                    # Case 1: YYYY-MM-DD
+                    if len(parts[0]) == 4:
+                        return f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+                    # Case 2: MM/DD/YY(YY) or DD/MM/YY(YY) - Try both
+                    year = parts[2]
+                    if len(year) == 2: year = "20" + year
+                    
+                    # Heuristic for US vs MX (default to MM/DD for now as per user preference)
+                    return f"{year}-{int(parts[0]):02d}-{int(parts[1]):02d}"
+                except Exception:
+                    continue
+                    
         return None
     
     def extract_vendor(self, text: str) -> Optional[str]:
@@ -127,13 +145,18 @@ class OCRProcessor:
                     # Prefer shorter lines for vendor name (slogans are usually longer)
                     candidates.append(line)
         
+        # Clean vendor name from strange prefix/suffix (like [ or | from logos)
         if candidates:
-            # Sort by length and take the shortest within the first few matches
-            # or just take the first one that doesn't look like a slogan
+            vendor = candidates[0]
             for c in candidates:
-                if len(c) < 30: # Vendor names are rarely 30+ chars
-                    return c[:255]
-            return candidates[0][:255]
+                if len(c) < 30:
+                    vendor = c
+                    break
+            
+            # Clean non-alphanumeric noise from start/end
+            vendor = re.sub(r'^[^a-zA-Z0-9]+', '', vendor)
+            vendor = re.sub(r'[^a-zA-Z0-9\s\.]+$', '', vendor)
+            return vendor[:255].strip()
             
         return lines[0][:255] if lines else None
     
