@@ -13,8 +13,19 @@ class OCRProcessor:
     """OCR processing service for receipts and documents"""
     
     # Currency detection keywords
-    USD_KEYWORDS = ['usd', 'dollar', 'sales tax', '$', 'us']
-    MXN_KEYWORDS = ['mxn', 'peso', 'iva', 'rfc', 'mx']
+    USD_KEYWORDS = ['usd', 'dollar', 'sales tax', '$', 'us', 'taxpayer id']
+    MXN_KEYWORDS = ['mxn', 'peso', 'iva', 'rfc', 'mx', 'factura', 'folio']
+    
+    # Template-based logic for specific common vendors
+    VENDOR_TEMPLATES = {
+        'QUIMEX': {
+            'keywords': ['quimex', 'tecnologia quimica'],
+            'total_keyword': 'total',
+            'tax_keyword': 'tax',
+            'tax_rate': 0.0825,
+            'date_format': 'MM/DD/YYYY'
+        }
+    }
     
     def __init__(self):
         """Initialize OCR processor"""
@@ -167,9 +178,18 @@ class OCRProcessor:
             'date': self.extract_date(text),
         }
         
+        # 0. Identify if we have a template for this layout
+        template = None
+        vendor_name = fields.get('vendor', '').upper()
+        for t_name, t_data in self.VENDOR_TEMPLATES.items():
+            if any(k.upper() in vendor_name for k in t_data['keywords']):
+                template = t_data
+                break
+
         # 1. Look for all amounts in the text
         all_amounts = []
-        monetary_matches = re.finditer(r'\$?\s*([\d,]+\.\d{2})', text)
+        # Support for numbers like 145.00, 1,145.00, etc.
+        monetary_matches = re.finditer(r'(?:\$|\s)([\d,]+\.\d{2})', text)
         for m in monetary_matches:
             try:
                 val = float(m.group(1).replace(',', ''))
@@ -184,11 +204,9 @@ class OCRProcessor:
         
         extracted_total = None
         for pattern in total_patterns:
-            # Find all matches and take the LAST one (totals are usually at the bottom)
             matches = re.findall(pattern, text, re.IGNORECASE)
             if matches:
                 try:
-                    # Clean up commas and convert to float
                     extracted_total = float(matches[-1].replace(',', ''))
                     break
                 except ValueError:
@@ -197,17 +215,17 @@ class OCRProcessor:
         if extracted_total:
             fields['total'] = extracted_total
         elif all_amounts:
-            # Heuristic: The total is almost always the largest amount on the page
+            # Heuristic: The total is almost always the largest amount
+            # EXCEPT in some templates where it might be near the bottom
             fields['total'] = max(all_amounts)
 
         # 3. Extract Tax
         tax_amount = None
         tax_patterns = [
-            r'(?:sales\s+tax|tax|tax\s+amount|stax|iva|i\.v\.a\.|impuesto)[:\s]*\$?\s*([\d,]+\.\d{2})',
+            r'(?:sales\s+tax|tax|tax\s+amount|stax|iva|i\.v\.a\.|impuesto)[:\s]*(?:[\d\.%]+\s+)?\$?\s*([\d,]+\.\d{2})',
         ]
         
         for pattern in tax_patterns:
-            # Match the one with the tax keyword
             matches = re.findall(pattern, text, re.IGNORECASE)
             if matches:
                 try:
@@ -216,14 +234,18 @@ class OCRProcessor:
                 except ValueError:
                     continue
         
-        # Texas-specific logic fallback
-        if currency == "USD" and not tax_amount and 'total' in fields:
-            texas_rate = 0.0825
-            for amt in all_amounts:
-                # Check if this amount is roughly 8.25% of the rest
-                if abs(amt - (fields['total'] - amt) * texas_rate) < 0.10:
-                    tax_amount = amt
-                    break
+        # Proximity logic for Tax (Fallback)
+        if not tax_amount and 'total' in fields:
+            # Look for 8.25% specifically if mentioned in text
+            if '8.25' in text or (template and template.get('tax_rate') == 0.0825):
+                texas_rate = 0.0825
+                for amt in all_amounts:
+                    # Is this 8.25% of any candidate subtotal?
+                    # Total - Tax = Subtotal. Tax = Subtotal * 0.0825
+                    # amt = (fields['total'] - amt) * 0.0825
+                    if abs(amt - (fields['total'] - amt) * texas_rate) < 0.20:
+                        tax_amount = amt
+                        break
         
         if tax_amount:
             fields['tax'] = tax_amount
