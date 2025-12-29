@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies including Tesseract OCR
+# Install system dependencies including Tesseract OCR and OpenCV requirements
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
@@ -13,6 +13,12 @@ RUN apt-get update && apt-get install -y \
     libpoppler-cpp-dev \
     poppler-utils \
     gcc \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
