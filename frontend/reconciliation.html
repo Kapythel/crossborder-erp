@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconciliation - Cross-Border ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/styles/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white font-inter">
+
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 h-full w-64 bg-black/30 backdrop-blur-xl border-r border-white/10 p-6">
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                CrossBorder ERP
+            </h1>
+            <p class="text-sm text-gray-400 mt-1">Texas-México Operations</p>
+        </div>
+
+        <nav class="space-y-2">
+            <a href="/" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Dashboard
+            </a>
+            <a href="/static/expenses.html" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Expenses OCR
+            </a>
+            <a href="/static/reconciliation.html" class="nav-item active">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Reconciliation
+            </a>
+            <a href="/api/docs" target="_blank" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                API Docs
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-64 p-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold mb-2">Bank Reconciliation</h2>
+                    <p class="text-gray-400">Match OCR expenses with bank transactions</p>
+                </div>
+                <select id="companySelect" class="input-field">
+                    <option value="">Select Company...</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="grid md:grid-cols-3 gap-6 mb-8">
+            <div class="stat-card">
+                <p class="text-sm text-gray-400 mb-1">Total Matches</p>
+                <p class="text-3xl font-bold text-green-400" id="totalMatches">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-400 mb-1">Pending Review</p>
+                <p class="text-3xl font-bold text-yellow-400" id="pendingMatches">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-400 mb-1">No Match</p>
+                <p class="text-3xl font-bold text-red-400" id="noMatches">0</p>
+            </div>
+        </div>
+
+        <!-- Reconciliation List -->
+        <div class="card">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-semibold">Reconciliation Items</h3>
+                <div class="flex gap-2">
+                    <button class="badge bg-green-500/20 text-green-400 cursor-pointer"
+                        onclick="filterMatches('exact')">
+                        Exact Matches
+                    </button>
+                    <button class="badge bg-yellow-500/20 text-yellow-400 cursor-pointer"
+                        onclick="filterMatches('likely')">
+                        Likely Matches
+                    </button>
+                    <button class="badge bg-red-500/20 text-red-400 cursor-pointer" onclick="filterMatches('no_match')">
+                        No Match
+                    </button>
+                    <button class="badge bg-gray-500/20 text-gray-400 cursor-pointer" onclick="filterMatches('all')">
+                        All
+                    </button>
+                </div>
+            </div>
+
+            <div id="reconciliationList">
+                <p class="text-gray-400 text-center py-8">Select a company to view reconciliation</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let allReconciliationItems = [];
+        let currentFilter = 'all';
+
+        function filterMatches(filter) {
+            currentFilter = filter;
+            renderReconciliation(allReconciliationItems);
+        }
+
+        function renderReconciliation(items) {
+            const container = document.getElementById('reconciliationList');
+
+            let filteredItems = items;
+            if (currentFilter !== 'all') {
+                filteredItems = items.filter(item => item.match_confidence === currentFilter);
+            }
+
+            if (!filteredItems || filteredItems.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8">No items to display</p>';
+                return;
+            }
+
+            // Update stats
+            const exactCount = items.filter(i => i.match_confidence === 'exact').length;
+            const likelyCount = items.filter(i => i.match_confidence === 'likely').length;
+            const noMatchCount = items.filter(i => i.match_confidence === 'no_match').length;
+
+            document.getElementById('totalMatches').textContent = exactCount;
+            document.getElementById('pendingMatches').textContent = likelyCount;
+            document.getElementById('noMatches').textContent = noMatchCount;
+
+            container.innerHTML = filteredItems.map(item => {
+                const expense = item.expense;
+                const transaction = item.matching_transaction;
+                const confidence = item.match_confidence;
+
+                let badgeClass = 'bg-gray-500/20 text-gray-400';
+                let badgeText = 'No Match';
+
+                if (confidence === 'exact') {
+                    badgeClass = 'bg-green-500/20 text-green-400';
+                    badgeText = '✓ Exact Match';
+                } else if (confidence === 'likely') {
+                    badgeClass = 'bg-yellow-500/20 text-yellow-400';
+                    badgeText = '~ Likely Match';
+                }
+
+                return `
+                    <div class="reconciliation-item mb-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="badge ${badgeClass}">${badgeText}</span>
+                            <span class="text-sm text-gray-400">${formatDate(expense.date)}</span>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <!-- Expense -->
+                            <div class="p-4 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                                <p class="text-xs text-purple-400 mb-2">OCR EXPENSE</p>
+                                <p class="font-semibold mb-1">${expense.description || expense.vendor || 'No description'}</p>
+                                <p class="text-2xl font-bold text-purple-400">${expense.currency} ${expense.amount.toFixed(2)}</p>
+                                ${expense.vendor ? `<p class="text-sm text-gray-400 mt-1">${expense.vendor}</p>` : ''}
+                            </div>
+                            
+                            <!-- Bank Transaction -->
+                            ${transaction ? `
+                                <div class="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                                    <p class="text-xs text-blue-400 mb-2">BANK TRANSACTION</p>
+                                    <p class="font-semibold mb-1">${transaction.description}</p>
+                                    <p class="text-2xl font-bold text-blue-400">${transaction.currency} ${transaction.amount.toFixed(2)}</p>
+                                    <p class="text-sm text-gray-400 mt-1">ID: ${transaction.transaction_id}</p>
+                                </div>
+                            ` : `
+                                <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                                    <p class="text-red-400">No matching transaction found</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load on page load
+        window.addEventListener('load', () => {
+            loadCompanies();
+        });
+    </script>
+</body>
+
+</html>

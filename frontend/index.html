@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Border ERP - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/styles/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white font-inter">
+    
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 h-full w-64 bg-black/30 backdrop-blur-xl border-r border-white/10 p-6">
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                CrossBorder ERP
+            </h1>
+            <p class="text-sm text-gray-400 mt-1">Texas-México Operations</p>
+        </div>
+        
+        <nav class="space-y-2">
+            <a href="/" class="nav-item active">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                Dashboard
+            </a>
+            <a href="/static/expenses.html" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Expenses OCR
+            </a>
+            <a href="/static/reconciliation.html" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                Reconciliation
+            </a>
+            <a href="/api/docs" target="_blank" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+                API Docs
+            </a>
+        </nav>
+        
+        <div class="mt-8 p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
+            <p class="text-xs text-gray-300 mb-2">Texas Sales Tax</p>
+            <p class="text-2xl font-bold">8.25%</p>
+        </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="ml-64 p-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold mb-2">Dashboard Overview</h2>
+                    <p class="text-gray-400">Welcome to your Cross-Border ERP System</p>
+                </div>
+                <div class="flex gap-3">
+                    <select id="companySelect" class="input-field">
+                        <option value="">Select Company...</option>
+                    </select>
+                    <button onclick="showAddCompanyModal()" class="btn-primary">
+                        + Add Company
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="stat-card">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm text-gray-400 mb-1">Total Invoices</p>
+                        <p class="text-3xl font-bold" id="totalInvoices">0</p>
+                    </div>
+                    <div class="stat-icon bg-blue-500/20 text-blue-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-center text-sm">
+                    <span class="text-green-400">↗ USD/MXN</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm text-gray-400 mb-1">Total Expenses</p>
+                        <p class="text-3xl font-bold" id="totalExpenses">0</p>
+                    </div>
+                    <div class="stat-icon bg-purple-500/20 text-purple-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-center text-sm">
+                    <span class="text-yellow-400">OCR Processed</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm text-gray-400 mb-1">Customs Logs</p>
+                        <p class="text-3xl font-bold" id="totalCustoms">0</p>
+                    </div>
+                    <div class="stat-icon bg-pink-500/20 text-pink-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-center text-sm">
+                    <span class="text-blue-400">Cross-Border</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm text-gray-400 mb-1">Tax Collected</p>
+                        <p class="text-3xl font-bold" id="totalTax">$0</p>
+                    </div>
+                    <div class="stat-icon bg-green-500/20 text-green-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-center text-sm">
+                    <span class="text-green-400">8.25% Texas</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="grid lg:grid-cols-2 gap-6">
+            <div class="card">
+                <h3 class="text-xl font-semibold mb-4">Recent Invoices</h3>
+                <div id="recentInvoices" class="space-y-3">
+                    <p class="text-gray-400 text-center py-8">No invoices yet</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="text-xl font-semibold mb-4">Recent Expenses</h3>
+                <div id="recentExpenses" class="space-y-3">
+                    <p class="text-gray-400 text-center py-8">No expenses yet</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Add Company Modal -->
+    <div id="addCompanyModal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-6">Add New Company</h3>
+            <form id="addCompanyForm" onsubmit="handleAddCompany(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Company Name</label>
+                        <input type="text" name="name" required class="input-field w-full" placeholder="Acme Corp">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">EIN (US Tax ID)</label>
+                        <input type="text" name="ein" required class="input-field w-full" placeholder="12-3456789">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Texas Sales Tax ID</label>
+                        <input type="text" name="texas_sales_tax_id" class="input-field w-full" placeholder="Optional">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">RFC (México Tax ID)</label>
+                        <input type="text" name="rfc" class="input-field w-full" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="closeModal('addCompanyModal')" class="btn-secondary flex-1">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-primary flex-1">
+                        Add Company
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

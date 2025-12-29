@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expenses OCR - Cross-Border ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/styles/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white font-inter">
+
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 h-full w-64 bg-black/30 backdrop-blur-xl border-r border-white/10 p-6">
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                CrossBorder ERP
+            </h1>
+            <p class="text-sm text-gray-400 mt-1">Texas-México Operations</p>
+        </div>
+
+        <nav class="space-y-2">
+            <a href="/" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Dashboard
+            </a>
+            <a href="/static/expenses.html" class="nav-item active">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Expenses OCR
+            </a>
+            <a href="/static/reconciliation.html" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Reconciliation
+            </a>
+            <a href="/api/docs" target="_blank" class="nav-item">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                API Docs
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-64 p-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold mb-2">Expense OCR Processing</h2>
+                    <p class="text-gray-400">Upload receipts for automatic data extraction</p>
+                </div>
+                <select id="companySelect" class="input-field">
+                    <option value="">Select Company...</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Upload Area -->
+        <div class="card mb-8">
+            <h3 class="text-xl font-semibold mb-4">Upload Receipt</h3>
+
+            <div id="uploadZone" class="upload-zone">
+                <svg class="w-16 h-16 mb-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p class="text-lg mb-2">Drag & Drop your receipt here</p>
+                <p class="text-sm text-gray-400 mb-4">or click to browse (JPG, PNG, PDF)</p>
+                <input type="file" id="fileInput" accept="image/*,application/pdf" class="hidden">
+                <button onclick="document.getElementById('fileInput').click()" class="btn-primary">
+                    Choose File
+                </button>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="hidden text-center py-8">
+                <div class="spinner"></div>
+                <p class="mt-4 text-gray-400">Processing with Tesseract OCR...</p>
+            </div>
+
+            <!-- OCR Results -->
+            <div id="ocrResults" class="hidden mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-lg font-semibold">Extracted Data</h4>
+                    <span id="confidenceBadge" class="badge"></span>
+                </div>
+
+                <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-yellow-300">⚠️ Please review and edit the extracted data if needed</p>
+                </div>
+
+                <form id="expenseForm" class="grid md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium mb-2">Vendor</label>
+                        <input type="text" id="vendor" class="input-field w-full" placeholder="Vendor name">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Date</label>
+                        <input type="date" id="date" class="input-field w-full">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Currency</label>
+                        <select id="currency" class="input-field w-full">
+                            <option value="USD">USD</option>
+                            <option value="MXN">MXN</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Total Amount</label>
+                        <input type="number" step="0.01" id="total" class="input-field w-full" placeholder="0.00">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Tax Amount</label>
+                        <input type="number" step="0.01" id="tax" class="input-field w-full" placeholder="0.00">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Tip</label>
+                        <input type="number" step="0.01" id="tip" class="input-field w-full" placeholder="0.00">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Category</label>
+                        <select id="category" class="input-field w-full">
+                            <option value="Meals">Meals</option>
+                            <option value="Transportation">Transportation</option>
+                            <option value="Supplies">Supplies</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium mb-2">Description</label>
+                        <textarea id="description" rows="2" class="input-field w-full"
+                            placeholder="Expense description"></textarea>
+                    </div>
+
+                    <div class="md:col-span-2 flex gap-3">
+                        <button type="button" onclick="cancelExpense()" class="btn-secondary flex-1">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn-primary flex-1">
+                            Save Expense
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Expenses List -->
+        <div class="card">
+            <h3 class="text-xl font-semibold mb-4">Recent Expenses</h3>
+            <div id="expensesList">
+                <p class="text-gray-400 text-center py-8">No expenses yet</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // File upload handling
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('border-purple-500');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('border-purple-500');
+        });
+
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('border-purple-500');
+            const file = e.dataTransfer.files[0];
+            if (file) await processReceipt(file);
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) await processReceipt(file);
+        });
+
+        // Load expenses on page load
+        window.addEventListener('load', () => {
+            loadCompanies();
+            loadExpenses();
+        });
+    </script>
+</body>
+
+</html>
