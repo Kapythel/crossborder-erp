@@ -115,16 +115,26 @@ class OCRProcessor:
     
     def extract_vendor(self, text: str) -> Optional[str]:
         """Extract vendor name (usually first line with text)"""
-        # Skip common generic headings
-        SKIP_LIST = ['invoice', 'factura', 'receipt', 'recibo', 'ticket', 'nota', 'original']
+        # Common stop-words for vendors (slogans, etc.)
+        SKIP_LIST = ['invoice', 'factura', 'receipt', 'recibo', 'ticket', 'nota', 'original', 'servicio', 'service']
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         
-        for line in lines[:8]:  # Check first 8 lines
+        # Candidates for vendor
+        candidates = []
+        for line in lines[:10]:
             if len(line) >= 3 and not re.match(r'^[\d\s\$\.,\-\/]+$', line):
                 if not any(skip in line.lower() for skip in SKIP_LIST):
-                    return line[:255]
+                    # Prefer shorter lines for vendor name (slogans are usually longer)
+                    candidates.append(line)
         
-        # Fallback to first line if everything was skipped
+        if candidates:
+            # Sort by length and take the shortest within the first few matches
+            # or just take the first one that doesn't look like a slogan
+            for c in candidates:
+                if len(c) < 30: # Vendor names are rarely 30+ chars
+                    return c[:255]
+            return candidates[0][:255]
+            
         return lines[0][:255] if lines else None
     
     def extract_fields(self, text: str, currency: str) -> Dict:
@@ -134,14 +144,8 @@ class OCRProcessor:
             'date': self.extract_date(text),
         }
         
-        # Extract total (look for the largest amount near keywords or the last numeric value)
-        total_patterns = [
-            r'(?:total|total amount|amount due|balance|total a pagar|importe total)[:\s]*\$?\s*([\d,]+\.\d{2})',
-            r'[\$]\s*([\d,]+\.\d{2})(?:\s*total)?',
-        ]
-        
+        # 1. Look for all amounts in the text
         all_amounts = []
-        # Find all monetary-looking values in the text
         monetary_matches = re.finditer(r'\$?\s*([\d,]+\.\d{2})', text)
         for m in monetary_matches:
             try:
@@ -150,43 +154,51 @@ class OCRProcessor:
             except ValueError:
                 continue
 
-        for pattern in total_patterns:
-            amount = self.extract_amount(text, pattern)
-            if amount:
-                fields['total'] = amount
-                break
+        # 2. Extract Total using more specific patterns
+        total_patterns = [
+            r'(?:total|total\s+amount|amount\s+due|balance|total\s+a\s+pagar|importe\s+total)[:\s]*\$?\s*([\d,]+\.\d{2})',
+        ]
         
-        # If no total found via keyword, try the largest amount found (heuristic)
-        if 'total' not in fields and all_amounts:
+        extracted_total = None
+        for pattern in total_patterns:
+            # Find all matches and take the LAST one (totals are usually at the bottom)
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                try:
+                    # Clean up commas and convert to float
+                    extracted_total = float(matches[-1].replace(',', ''))
+                    break
+                except ValueError:
+                    continue
+        
+        if extracted_total:
+            fields['total'] = extracted_total
+        elif all_amounts:
+            # Heuristic: The total is almost always the largest amount on the page
             fields['total'] = max(all_amounts)
 
-        # Extract tax
+        # 3. Extract Tax
         tax_amount = None
-        if currency == "USD":
-            tax_patterns = [
-                r'(?:sales tax|tax|tax amount|stax)[:\s]*\$?\s*([\d,]+\.\d{2})',
-            ]
-        else:  # MXN
-            tax_patterns = [
-                r'(?:iva|i\.v\.a\.|impuesto)[:\s]*\$?\s*([\d,]+\.\d{2})',
-            ]
+        tax_patterns = [
+            r'(?:sales\s+tax|tax|tax\s+amount|stax|iva|i\.v\.a\.|impuesto)[:\s]*\$?\s*([\d,]+\.\d{2})',
+        ]
         
         for pattern in tax_patterns:
-            amount = self.extract_amount(text, pattern)
-            if amount:
-                tax_amount = amount
-                break
+            # Match the one with the tax keyword
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                try:
+                    tax_amount = float(matches[-1].replace(',', ''))
+                    break
+                except ValueError:
+                    continue
         
-        # Texas-specific logic: If currency is USD and we have a total but no tax, 
-        # check if 8.25% of any sub-amount matches
+        # Texas-specific logic fallback
         if currency == "USD" and not tax_amount and 'total' in fields:
             texas_rate = 0.0825
-            estimated_subtotal = fields['total'] / (1 + texas_rate)
-            estimated_tax = fields['total'] - estimated_subtotal
-            
-            # Check if any found amount matches the 8.25% tax
             for amt in all_amounts:
-                if abs(amt - estimated_tax) < 0.05: # Allow 5 cents difference for rounding
+                # Check if this amount is roughly 8.25% of the rest
+                if abs(amt - (fields['total'] - amt) * texas_rate) < 0.10:
                     tax_amount = amt
                     break
         
