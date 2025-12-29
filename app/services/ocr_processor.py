@@ -18,18 +18,31 @@ class OCRProcessor:
     
     def __init__(self):
         """Initialize OCR processor"""
-        self.tesseract_config = '--oem 3 --psm 6'  # LSTM OCR, assume uniform block of text
+        self.tesseract_config = '--oem 3 --psm 3 -l eng+spa'  # LSTM, auto segment, English + Spanish
     
     def preprocess_image(self, image: Image.Image) -> Image.Image:
-        """Preprocess image for better OCR accuracy"""
-        # Convert to grayscale
+        """Preprocess image for better OCR accuracy using Pillow"""
+        # 1. Upscale if image is small (helps Tesseract with small fonts)
+        width, height = image.size
+        if width < 1000:
+            scale = 2000 / width
+            image = image.resize((int(width * scale), int(height * scale)), Image.LANCZOS)
+            
+        # 2. Convert to grayscale
         image = image.convert('L')
         
-        # Enhance contrast (simple threshold)
-        # For production, consider using adaptive thresholding
-        from PIL import ImageEnhance
+        # 3. Enhance Contrast & Sharpness
+        from PIL import ImageEnhance, ImageFilter
+        
+        # Sharpen the image
+        image = image.filter(ImageFilter.SHARPEN)
+        
+        # High contrast (almost binarization)
         enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(2.0)
+        image = enhancer.enhance(3.0)
+        
+        # 4. Optional: Denoise with a small blur if too grainy
+        # image = image.filter(ImageFilter.MedianFilter(size=3))
         
         return image
     
@@ -88,22 +101,31 @@ class OCRProcessor:
     
     def extract_date(self, text: str) -> Optional[str]:
         """Extract date from text"""
-        # US format: MM/DD/YYYY or MM-DD-YYYY
-        us_pattern = r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
-        # MX format: DD/MM/YYYY
-        match = re.search(us_pattern, text)
-        if match:
-            return match.group(1)
+        # Common date formats: MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, etc.
+        date_patterns = [
+            r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', # 12/31/2023 or 31-12-23
+            r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})', # 2023-12-31
+            r'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2},?\s+\d{4}', # Jan 31, 2023
+        ]
+        for pattern in date_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(0)
         return None
     
     def extract_vendor(self, text: str) -> Optional[str]:
         """Extract vendor name (usually first line with text)"""
+        # Skip common generic headings
+        SKIP_LIST = ['invoice', 'factura', 'receipt', 'recibo', 'ticket', 'nota', 'original']
         lines = [line.strip() for line in text.split('\n') if line.strip()]
-        # Return first non-empty line that has at least 3 characters
-        for line in lines[:5]:  # Check first 5 lines
+        
+        for line in lines[:8]:  # Check first 8 lines
             if len(line) >= 3 and not re.match(r'^[\d\s\$\.,\-\/]+$', line):
-                return line[:255]  # Limit to 255 chars
-        return None
+                if not any(skip in line.lower() for skip in SKIP_LIST):
+                    return line[:255]
+        
+        # Fallback to first line if everything was skipped
+        return lines[0][:255] if lines else None
     
     def extract_fields(self, text: str, currency: str) -> Dict:
         """Extract structured fields from OCR text"""
@@ -112,33 +134,64 @@ class OCRProcessor:
             'date': self.extract_date(text),
         }
         
-        # Extract total
+        # Extract total (look for the largest amount near keywords or the last numeric value)
         total_patterns = [
-            r'(total|TOTAL)[:\s]*\$?\s*([\d,]+\.?\d{0,2})',
-            r'(amount due|AMOUNT DUE)[:\s]*\$?\s*([\d,]+\.?\d{0,2})',
-            r'(balance|BALANCE)[:\s]*\$?\s*([\d,]+\.?\d{0,2})',
+            r'(?:total|total amount|amount due|balance|total a pagar|importe total)[:\s]*\$?\s*([\d,]+\.\d{2})',
+            r'[\$]\s*([\d,]+\.\d{2})(?:\s*total)?',
         ]
+        
+        all_amounts = []
+        # Find all monetary-looking values in the text
+        monetary_matches = re.finditer(r'\$?\s*([\d,]+\.\d{2})', text)
+        for m in monetary_matches:
+            try:
+                val = float(m.group(1).replace(',', ''))
+                all_amounts.append(val)
+            except ValueError:
+                continue
+
         for pattern in total_patterns:
             amount = self.extract_amount(text, pattern)
             if amount:
                 fields['total'] = amount
                 break
         
+        # If no total found via keyword, try the largest amount found (heuristic)
+        if 'total' not in fields and all_amounts:
+            fields['total'] = max(all_amounts)
+
         # Extract tax
+        tax_amount = None
         if currency == "USD":
             tax_patterns = [
-                r'(sales tax|tax|TAX)[:\s]*\$?\s*([\d,]+\.?\d{0,2})',
+                r'(?:sales tax|tax|tax amount|stax)[:\s]*\$?\s*([\d,]+\.\d{2})',
             ]
         else:  # MXN
             tax_patterns = [
-                r'(iva|IVA)[:\s]*\$?\s*([\d,]+\.?\d{0,2})',
+                r'(?:iva|i\.v\.a\.|impuesto)[:\s]*\$?\s*([\d,]+\.\d{2})',
             ]
         
         for pattern in tax_patterns:
             amount = self.extract_amount(text, pattern)
             if amount:
-                fields['tax'] = amount
+                tax_amount = amount
                 break
+        
+        # Texas-specific logic: If currency is USD and we have a total but no tax, 
+        # check if 8.25% of any sub-amount matches
+        if currency == "USD" and not tax_amount and 'total' in fields:
+            texas_rate = 0.0825
+            estimated_subtotal = fields['total'] / (1 + texas_rate)
+            estimated_tax = fields['total'] - estimated_subtotal
+            
+            # Check if any found amount matches the 8.25% tax
+            for amt in all_amounts:
+                if abs(amt - estimated_tax) < 0.05: # Allow 5 cents difference for rounding
+                    tax_amount = amt
+                    break
+        
+        if tax_amount:
+            fields['tax'] = tax_amount
         
         # Extract tip
         tip_patterns = [
